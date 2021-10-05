@@ -47,5 +47,6 @@ debug.sh
 # project related
 bin/
 data/
+build/
 kff-tools
 **/*.kff
