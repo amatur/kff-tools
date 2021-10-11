@@ -28,6 +28,7 @@ public:
 	SpssToKff();
 	void cli_prepare(CLI::App * subapp);
 	void exec();
+	void exec2();
 };
 
 #endif

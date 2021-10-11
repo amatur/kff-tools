@@ -36,11 +36,12 @@ void SpssToKff::cli_prepare(CLI::App * app) {
 	output_option->required();
 	CLI::Option * k_opt = subapp->add_option("-k, --kmer-size", k, "Mandatory kmer size");
 	k_opt->required();
+	CLI::Option * max_kmerseq_opt = subapp->add_option("-m, --max-kmer-seq", max_kmerseq, "The maximum number of kmer that can be inside of sequence in the output (default 255).");
+	max_kmerseq_opt->required();
 	subapp->add_option("-d, --data-size", data_size, "Data size in Bytes (Default 0, max 8).");
 	subapp->add_option("--delimiter", this->delimiter, "Character used as a delimiter between the sequence and the data (default ' ').");
 	subapp->add_option("--data-delimiter", this->data_delimiter, "Character used as a delimiter between two kmers data from the same sequence (default ',').");
-	subapp->add_option("-m, --max-kmer-seq", max_kmerseq, "The maximum number of kmer that can be inside of sequence in the output (default 255).");
-	max_kmerseq->required();
+
 }
 
 
@@ -70,7 +71,19 @@ public:
       , seq_buffer(new uint8_t[1024])
       , data_buffer(new uint8_t[(1024 * 4 - k + 1	) * data_size])
       , k(k)
-      , data_size(data_size)
+      , data_size(data_size)// uint8_t * seq;
+	// //uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
+	// uint8_t * data = new uint8_t[data_size * max_kmerseq];
+
+	//uint8_t * byte_seq;
+	// Write the minimizer
+	//byte_seq = encode("AAATAACACA");
+	//sm.write_minimizer(byte_seq);
+	//	delete [] byte_seq;
+
+
+	// std::fstream pos_file("~/projects/Blight/example/m_88095.pos", std::ios_base::in);
+    // uint64_t minimizer_pos;
       , delimiter(delim)
       , data_delimiter(data_delim)
   {};
@@ -93,10 +106,12 @@ public:
 
 		// Get the split limit
 		size_t seq_size = 0;
+		
 		if (this->data_size == 0)
 			seq_size = line.size();
 		else {
 			seq_size = line.find(this->delimiter);
+			
 			if (seq_size == string::npos) {
 				cerr << "Delimiter not found in" << endl << "\t" << line << endl;
 				exit(1);
@@ -140,13 +155,97 @@ public:
   }
 };
 
-
-
 void SpssToKff::exec() {
+	Kff_file outfile(this->output_filename, "w");
+	string minimizer_filename="/home/amatur/projects/kff-tools/bin/minimizer";
+	string position_filename="/home/amatur/projects/kff-tools/bin/pos";
+
+		// Write needed variables
+	Section_GV sgv(&outfile);
+	sgv.write_var("k", this->k);
+	sgv.write_var("m", 10);
+	sgv.write_var("data_size", this->data_size);
+	sgv.write_var("ordered", 0);
+	sgv.write_var("max", this->max_kmerseq);
+	sgv.close();
+
+		const uint8_t encoding[4] = {0, 1, 3, 2};
+	
+	cout<<"ho";
+		// Write the sequences inside of a minimizer section
+	Section_Minimizer sm(&outfile);
+	
+	//uint8_t * byte_seq;
+	// Write the minimizer
+	//byte_seq = encode("AAATAACACA");
+	//sm.write_minimizer(byte_seq);
+	//	delete [] byte_seq;
+
+
+	std::fstream pos_file(position_filename, std::ios_base::in);
+    uint64_t minimizer_pos;
+    
+
+	uint8_t * seq_mini;
+	//uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
+	uint8_t * data_mini = new uint8_t[0];
+	uint seq_size = 0;
+	cout<<"before mini"<<endl;
+	TxtSeqStream stream_mini(minimizer_filename, encoding, 10, 0, " ", ",");
+	while ((seq_size = stream_mini.next_sequence(seq_mini, data_mini)) > 0) {
+		cout<<"got mini" << seq_size<<endl;
+		sm.write_minimizer(seq_mini);
+		break;
+	}
+	
+		cout<<"after mini"<<endl;
+
+
+
+	uint8_t * seq;
+	//uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
+	uint8_t * data = new uint8_t[this->data_size *  this->max_kmerseq];
+		//TxtSeqStream stream(input_filename, encoding, this->k, this->data_size, this->delimiter, this->data_delimiter);
+		TxtSeqStream stream(input_filename, encoding, this->k ,this->data_size,  " ", ",");
+	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
+		if (seq_size < k){
+			cerr<<"Error: small seq";
+			exit(2);
+		}
+		uint nb_kmers = seq_size - this->k + 1;
+		// Full sequence copy
+		if (nb_kmers > this->max_kmerseq) {
+			cout<<nb_kmers<<endl;
+			cout<<this->max_kmerseq<<endl;
+			cerr<<"Error: nb kmer exceed max"<<endl;
+			exit(2);
+		}
+
+		if (!(pos_file >> minimizer_pos))
+		{
+			cerr<<"Invalid position file"<<endl;
+			exit(2);
+		}
+			//uint nucl_size =  this->k - 10 + nb_kmers - 1;
+			uint nucl_size =  this->k + nb_kmers - 1;
+		//sr.write_compacted_sequence(seq, seq_size, data);
+		cout<<seq_size<<" "<<minimizer_pos<<endl;
+		sm.write_compacted_sequence(seq, nucl_size, minimizer_pos, data);
+		//                                    minimizer position ^
+	}
+	//delete[] data;
+	//delete[] seq;
+	sm.close();
+	
+	outfile.close();
+}
+
+void SpssToKff::exec2() {
+	
 	// Open a KFF for output
 	Kff_file outfile(this->output_filename, "w");
 	string minimizer_filename="minimizer";
-	strint position_filename="pos";
+	string position_filename="pos";
 
 	// Write needed variables
 	Section_GV sgv(&outfile);
@@ -180,12 +279,14 @@ void SpssToKff::exec() {
 
 
 	uint seq_size = 0;
+	cout<<"before mini"<<endl;
 	TxtSeqStream stream_mini(minimizer_filename, encoding, 10, 0, " ", " ");
 	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
 		sm.write_minimizer(seq);
 		break;
 	}
 	
+		cout<<"after mini"<<endl;
 	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
 		if (seq_size < k){
 			cerr<<"Error: small seq";
@@ -198,7 +299,7 @@ void SpssToKff::exec() {
 			exit(2);
 		}
 
-		if !(pos_file >> minimizer_pos)
+		if (!(pos_file >> minimizer_pos))
 		{
 			cerr<<"Invalid position file";
 			exit(2);

@@ -17,6 +17,7 @@
 #include "bucket.hpp"
 #include "shuffle.hpp"
 #include "sort.hpp"
+#include "spss_to_kff.hpp"
 
 
 using namespace std;
@@ -88,6 +89,7 @@ int main(int argc, char** argv) {
 	tools.push_back(new Compact());
 	tools.push_back(new Shuffle()); 
 	tools.push_back(new Sort()); 
+	tools.push_back(new SpssToKff()); 
 
 	// Get the one selected
 	KffTool * tool = parse_args(argc, argv, tools);

@@ -31,6 +31,7 @@ set(SRCS
     compact.cpp
     shuffle.cpp
     sort.cpp
+    spss_to_kff.cpp
     )
     
 set(HEADERS
@@ -50,6 +51,7 @@ set(HEADERS
     compact.hpp
     shuffle.hpp
     sort.hpp
+    spss_to_kff.hpp
     )
 
 # add the executable
