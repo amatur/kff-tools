@@ -14,6 +14,7 @@ Outstr::Outstr() {
 	input_filename = "";
 	minimizer_size = 10;
 	output_file_prefix = "";
+	revcomp=false;
 }
 
 void Outstr::cli_prepare(CLI::App * app) {
@@ -25,7 +26,7 @@ void Outstr::cli_prepare(CLI::App * app) {
 	CLI::Option * input_option_m = subapp->add_option("-m, --minimizer-size", minimizer_size, "Length of minimizer");
 	input_option_m->required();
 
-	CLI::Option * input_option_mo = subapp->add_option("-o, --minimizer-output", output_file_prefix, "File to store minimizer");
+	CLI::Option * input_option_mo = subapp->add_option("-o, --output-prefix", output_file_prefix, "prefix of file to store minimizer and encoding");
 	input_option_mo->required();
 
 	subapp->add_flag("-c, --reverse-complement", revcomp, "Print the minimal value between a kmer and its reverse complement");
@@ -77,6 +78,11 @@ void Outstr::exec() {
 	// Read the encoding and prepare the translator
 	Kff_reader reader = Kff_reader(input_filename);
 	Stringifyer strif(reader.get_encoding());
+	string minimizer_output=output_file_prefix+".minimizer";
+	string encoding_output=output_file_prefix+".encoding";
+	ofstream encoding_of(encoding_output);
+	encoding_of<<int(reader.get_encoding()[0])<<" "<<int(reader.get_encoding()[1])<<" "<<int(reader.get_encoding()[2])<<" "<<int(reader.get_encoding()[3]);
+	encoding_of.close();
 	
 	// Prepare revcomp
 	RevComp rc(reader.get_encoding());
@@ -105,7 +111,7 @@ void Outstr::exec() {
 				}
 
 				ofstream outfile;
-				outfile.open (output_file_prefix);
+				outfile.open (minimizer_output);
 				outfile << min_fonly << endl;
 				outfile.close();
 				minimizer_computed=true;
@@ -136,7 +142,7 @@ void Outstr::exec() {
 					}
 
 					ofstream outfile;
-					outfile.open (output_file_prefix);
+					outfile.open (minimizer_output);
 					outfile << min_fonly << endl;
 					outfile.close();
 					minimizer_computed=true;
@@ -155,7 +161,7 @@ void Outstr::exec() {
 					}
 
 					ofstream outfile;
-					outfile.open (output_file_prefix);
+					outfile.open (minimizer_output);
 					outfile << min_fonly << endl;
 					outfile.close();
 					minimizer_computed=true;

@@ -18,30 +18,35 @@ using namespace std;
 
 
 SpssToKff::SpssToKff() {
-	input_filename = "";
+	basename = "";
 	output_filename = "";
 	data_size = 0;
 	k = 0;
 	max_kmerseq = 255;
 	delimiter = " ";
 	data_delimiter = ",";
+	minimizer_size=10;
 }
 
 void SpssToKff::cli_prepare(CLI::App * app) {
 	this->subapp = app->add_subcommand("SpssToKff", "Convert a text kmer file or a text sequence file into a kff file. Kmers or sequences must be 1 per line. If data size is more than 0, then the delimiters are used to split each line.");
-	CLI::Option * input_option = subapp->add_option("-i, --infile", input_filename, "A text file with one sequence per line (sequence omitted if its size < k). Empty data is added (size defined by -d option).");
+	CLI::Option * input_option = subapp->add_option("-i, --infile", basename, "basename .instr: A text file with one sequence per line (sequence omitted if its size < k). Empty data is added (size defined by -d option).");
 	input_option->required();
-	input_option->check(CLI::ExistingFile);
-	CLI::Option * output_option = subapp->add_option("-o, --outfile", output_filename, "The kff output file name.");
-	output_option->required();
+	//input_option->check(CLI::ExistingFile);
+	// CLI::Option * output_option = subapp->add_option("-o, --outfile", output_filename, "The kff output file name.");
+	// output_option->required();
 	CLI::Option * k_opt = subapp->add_option("-k, --kmer-size", k, "Mandatory kmer size");
 	k_opt->required();
 	CLI::Option * max_kmerseq_opt = subapp->add_option("-m, --max-kmer-seq", max_kmerseq, "The maximum number of kmer that can be inside of sequence in the output (default 255).");
 	max_kmerseq_opt->required();
-	subapp->add_option("-d, --data-size", data_size, "Data size in Bytes (Default 0, max 8).");
-	subapp->add_option("--delimiter", this->delimiter, "Character used as a delimiter between the sequence and the data (default ' ').");
-	subapp->add_option("--data-delimiter", this->data_delimiter, "Character used as a delimiter between two kmers data from the same sequence (default ',').");
 
+	CLI::Option * mini_size_opt = subapp->add_option("-s, --minimizer-size", minimizer_size, "Minimizer size");
+	mini_size_opt->required();
+
+	CLI::Option * data_size_opt = subapp->add_option("-d, --data-size", data_size, "Data size in Bytes (Default 0, max 8).");
+	data_size_opt->required();
+	//subapp->add_option("--delimiter", this->delimiter, "Character used as a delimiter between the sequence and the data (default ' ').");
+	//subapp->add_option("--data-delimiter", this->data_delimiter, "Character used as a delimiter between two kmers data from the same sequence (default ',').");
 }
 
 
@@ -156,229 +161,73 @@ public:
 };
 
 void SpssToKff::exec() {
+
+	this->output_filename = basename+".ess.kff";
 	Kff_file outfile(this->output_filename, "w");
-	string minimizer_filename="/home/amatur/projects/kff-tools/bin/minimizer";
-	string position_filename="/home/amatur/projects/kff-tools/bin/pos";
+	string minimizer_filename=basename+".minimizer";
+	string position_filename=basename+".pos";
+	string input_filename = basename+".instr";
+	string encoding_filename = basename+".encoding";
+	
+	//uint minimizer_size = 10;
 
 		// Write needed variables
 	Section_GV sgv(&outfile);
 	sgv.write_var("k", this->k);
-	sgv.write_var("m", 10);
+	sgv.write_var("m", minimizer_size);
 	sgv.write_var("data_size", this->data_size);
-	sgv.write_var("ordered", 0);
+	//sgv.write_var("ordered", 0);
 	sgv.write_var("max", this->max_kmerseq);
 	sgv.close();
 
-		const uint8_t encoding[4] = {0, 1, 3, 2};
-	
-	cout<<"ho";
-		// Write the sequences inside of a minimizer section
-	Section_Minimizer sm(&outfile);
-	
-	//uint8_t * byte_seq;
-	// Write the minimizer
-	//byte_seq = encode("AAATAACACA");
-	//sm.write_minimizer(byte_seq);
-	//	delete [] byte_seq;
 
+	std::fstream myfile(encoding_filename, std::ios_base::in);
+    int a, b, c, d;
+    myfile >> a >> b >> c >> d;
 
-	std::fstream pos_file(position_filename, std::ios_base::in);
-    uint64_t minimizer_pos;
-    
-
-	uint8_t * seq_mini;
-	//uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
-	uint8_t * data_mini = new uint8_t[0];
-	uint seq_size = 0;
-	cout<<"before mini"<<endl;
-	TxtSeqStream stream_mini(minimizer_filename, encoding, 10, 0, " ", ",");
-	while ((seq_size = stream_mini.next_sequence(seq_mini, data_mini)) > 0) {
-		cout<<"got mini" << seq_size<<endl;
-		sm.write_minimizer(seq_mini);
-		break;
-	}
-	
-		cout<<"after mini"<<endl;
-
-
-
-	uint8_t * seq;
-	//uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
-	uint8_t * data = new uint8_t[this->data_size *  this->max_kmerseq];
-		//TxtSeqStream stream(input_filename, encoding, this->k, this->data_size, this->delimiter, this->data_delimiter);
-		TxtSeqStream stream(input_filename, encoding, this->k ,this->data_size,  " ", ",");
-	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
-		if (seq_size < k){
-			cerr<<"Error: small seq";
-			exit(2);
-		}
-		uint nb_kmers = seq_size - this->k + 1;
-		// Full sequence copy
-		if (nb_kmers > this->max_kmerseq) {
-			cout<<nb_kmers<<endl;
-			cout<<this->max_kmerseq<<endl;
-			cerr<<"Error: nb kmer exceed max"<<endl;
-			exit(2);
-		}
-
-		if (!(pos_file >> minimizer_pos))
-		{
-			cerr<<"Invalid position file"<<endl;
-			exit(2);
-		}
-			//uint nucl_size =  this->k - 10 + nb_kmers - 1;
-			uint nucl_size =  this->k + nb_kmers - 1;
-		//sr.write_compacted_sequence(seq, seq_size, data);
-		cout<<seq_size<<" "<<minimizer_pos<<endl;
-		sm.write_compacted_sequence(seq, nucl_size, minimizer_pos, data);
-		//                                    minimizer position ^
-	}
-	//delete[] data;
-	//delete[] seq;
-	sm.close();
-	
-	outfile.close();
-}
-
-void SpssToKff::exec2() {
-	
-	// Open a KFF for output
-	Kff_file outfile(this->output_filename, "w");
-	string minimizer_filename="minimizer";
-	string position_filename="pos";
-
-	// Write needed variables
-	Section_GV sgv(&outfile);
-	sgv.write_var("k", this->k);
-	sgv.write_var("data_size", this->data_size);
-	sgv.write_var("ordered", 0);
-	sgv.write_var("max", this->max_kmerseq);
-	sgv.close();
-
-	// Open the input seq stream
-	const uint8_t encoding[4] = {0, 1, 3, 2};
-	TxtSeqStream stream(input_filename, encoding, this->k, this->data_size, this->delimiter, this->data_delimiter);
+	const uint8_t encoding[4] = {uint8_t(a), uint8_t(b), uint8_t(c), uint8_t(d)};
 
 	// Write the sequences inside of a minimizer section
 	Section_Minimizer sm(&outfile);
 
-	uint8_t * seq;
-	//uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
-	uint8_t * data = new uint8_t[data_size * max_kmerseq];
-
-	//uint8_t * byte_seq;
-	// Write the minimizer
-	//byte_seq = encode("AAATAACACA");
-	//sm.write_minimizer(byte_seq);
-	//	delete [] byte_seq;
-
-
 	std::fstream pos_file(position_filename, std::ios_base::in);
     uint64_t minimizer_pos;
     
-
-
+	uint8_t * seq_mini;
+	uint8_t * data_mini = new uint8_t[0];
 	uint seq_size = 0;
-	cout<<"before mini"<<endl;
-	TxtSeqStream stream_mini(minimizer_filename, encoding, 10, 0, " ", " ");
-	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
-		sm.write_minimizer(seq);
+
+	TxtSeqStream stream_mini(minimizer_filename, encoding, minimizer_size, 0, " ", ",");
+	while ((seq_size = stream_mini.next_sequence(seq_mini, data_mini)) > 0) {
+		sm.write_minimizer(seq_mini);
 		break;
 	}
 	
-		cout<<"after mini"<<endl;
+	uint8_t * seq;
+	uint8_t * data = new uint8_t[this->data_size *  this->max_kmerseq];
+	TxtSeqStream stream(input_filename, encoding, this->k ,this->data_size,  " ", ",");
 	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
 		if (seq_size < k){
-			cerr<<"Error: small seq";
+			cerr<<"Error: seq size is smaller than k"<<endl;
 			exit(2);
 		}
 		uint nb_kmers = seq_size - this->k + 1;
 		// Full sequence copy
 		if (nb_kmers > this->max_kmerseq) {
-			cerr<<"Error: nb kmer exceed max";
+			cerr<<"Error: nb kmers exceed max "<<nb_kmers<<">"<<this->max_kmerseq<<endl;
 			exit(2);
 		}
 
 		if (!(pos_file >> minimizer_pos))
 		{
-			cerr<<"Invalid position file";
+			cerr<<"Error: Invalid position file"<<endl;
 			exit(2);
 		}
-		//sr.write_compacted_sequence(seq, seq_size, data);
-		sm.write_compacted_sequence_without_mini(seq, seq_size, minimizer_pos, data);
-		//                                    minimizer position ^
+		
+		uint nucl_size =  this->k + nb_kmers - 1;
+		sm.write_compacted_sequence(seq, nucl_size, minimizer_pos, data);
 	}
-	delete[] data;
-	delete[] seq;
 	sm.close();
 	outfile.close();
 }
-
-
-// void SpssToKff::exec() {
-// 	// reset data size to 0 if data are not counts
-// 	if (this->is_counts) {
-// 		this->max_kmerseq = 1;
-// 	} else
-// 		this->data_size = 0;
-
-// 	// Open a KFF for output
-// 	Kff_file outfile(this->output_filename, "w");
-// 	// Write needed variables
-// 	Section_GV sgv(&outfile);
-// 	sgv.write_var("k", this->k);
-// 	sgv.write_var("data_size", this->data_size);
-// 	sgv.write_var("ordered", 0);
-// 	sgv.write_var("max", this->max_kmerseq);
-// 	sgv.close();
-
-// 	// Open the input seq stream
-// 	const uint8_t encoding[4] = {0, 1, 3, 2};
-// 	TxtSeqStream stream(input_filename, encoding);
-// 	if (this->is_counts)
-// 		stream.set_counts(this->k, this->data_size);
-
-// 	// Write the sequences inside of a raw section
-// 	Section_Raw sr(&outfile);
-
-// 	uint8_t * seq;
-// 	uint8_t * sub_seq = new uint8_t[(max_kmerseq + 3) / 4];
-// 	uint8_t * data = new uint8_t[data_size];
-// 	uint seq_size = 0;
-// 	// read the next line from the txt file
-// 	while ((seq_size = stream.next_sequence(seq, data)) > 0) {
-// 		// Sequence too small
-// 		if (seq_size < k)
-// 			continue;
-		
-// 		uint nb_kmers = seq_size - this->k + 1;
-// 		// Full sequence copy
-// 		if (nb_kmers <= this->max_kmerseq) {
-// 			sr.write_compacted_sequence(seq, seq_size, data);
-// 			continue;
-// 		}
-
-// 		// Sequence saved slice per slice
-// 		uint first_nucl = 0;
-// 		while (nb_kmers > 0) {
-// 			uint nb_kmer_copied = min(nb_kmers, this->max_kmerseq);
-// 			uint copy_size = nb_kmer_copied + (k - 1);
-			
-// 			uint last_nucl = first_nucl + (copy_size - 1);
-// 			subsequence(seq, seq_size, sub_seq, first_nucl, last_nucl);
-// 			first_nucl = last_nucl + 1 - (k - 1);
-
-// 			// Write the sequence
-// 			sr.write_compacted_sequence(sub_seq, copy_size, data);
-
-// 			// reduce the number of remaining kmers
-// 			nb_kmers -= nb_kmer_copied;
-// 		}
-// 	}
-// 	sr.close();
-
-// 	delete[] sub_seq;
-// 	delete[] data;
-// 	outfile.close();
-// }
 

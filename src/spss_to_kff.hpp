@@ -11,12 +11,13 @@
 
 class SpssToKff: public KffTool {
 private:
-	std::string input_filename;
+	std::string basename;
 	std::string output_filename;
 
 	uint data_size;
 	uint k;
 	uint max_kmerseq;
+	uint minimizer_size;
 
 	std::string delimiter;
   std::string data_delimiter;
