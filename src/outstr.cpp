@@ -4,6 +4,7 @@
 
 #include "outstr.hpp"
 #include "encoding.hpp"
+#include <fstream>
 
 
 using namespace std;
@@ -11,6 +12,8 @@ using namespace std;
 
 Outstr::Outstr() {
 	input_filename = "";
+	minimizer_size = 10;
+	output_file_prefix = "";
 }
 
 void Outstr::cli_prepare(CLI::App * app) {
@@ -18,6 +21,13 @@ void Outstr::cli_prepare(CLI::App * app) {
 	CLI::Option * input_option = subapp->add_option("-i, --infile", input_filename, "The file to print");
 	input_option->required();
 	input_option->check(CLI::ExistingFile);
+
+	CLI::Option * input_option_m = subapp->add_option("-m, --minimizer-size", minimizer_size, "Length of minimizer");
+	input_option_m->required();
+
+	CLI::Option * input_option_mo = subapp->add_option("-o, --minimizer-output", output_file_prefix, "File to store minimizer");
+	input_option_mo->required();
+
 	subapp->add_flag("-c, --reverse-complement", revcomp, "Print the minimal value between a kmer and its reverse complement");
 }
 
@@ -77,11 +87,29 @@ void Outstr::exec() {
 	uint8_t * nucleotides = nullptr;
 	uint8_t * data = nullptr;
 
+	bool minimizer_computed = false;
+
 	while (reader.next_kmer(nucleotides, data)) {
 
 		if (not revcomp) {
 			cout << strif.translate(nucleotides, reader.k) << " ";
 			cout << format_data(data, reader.data_size) << '\n';
+			if(!minimizer_computed){
+				string	min_fonly="ZZZZZZZZZZZZZ";
+				string curr_kmer=strif.translate(nucleotides, reader.k);
+				for(uint j=0; j <  reader.k-minimizer_size+1; j++  )
+				{
+						string curr_msub=curr_kmer.substr(j, minimizer_size);
+						if(curr_msub < min_fonly)
+							min_fonly=curr_msub;
+				}
+
+				ofstream outfile;
+				outfile.open (output_file_prefix);
+				outfile << min_fonly << endl;
+				outfile.close();
+				minimizer_computed=true;
+			}
 		} else {
 			// Change the size of rev comp datastruct if k changes
 			if (reader.k != k) {
@@ -97,9 +125,41 @@ void Outstr::exec() {
 			if (inf_eq(nucleotides, rc_copy, k)) {
 				cout << strif.translate(nucleotides, k) << " ";
 				cout << format_data(data, reader.data_size) << '\n';
+				if(!minimizer_computed){
+					string	min_fonly="ZZZZZZZZZZZZZ";
+					string curr_kmer=strif.translate(nucleotides, k);
+					for(uint j=0; j <  reader.k-minimizer_size+1; j++  )
+					{
+							string curr_msub=curr_kmer.substr(j, minimizer_size);
+							if(curr_msub < min_fonly)
+								min_fonly=curr_msub;
+					}
+
+					ofstream outfile;
+					outfile.open (output_file_prefix);
+					outfile << min_fonly << endl;
+					outfile.close();
+					minimizer_computed=true;
+				}
 			} else {
 				cout << strif.translate(rc_copy, k) << " ";
 				cout << format_data(data, reader.data_size) << '\n';
+				if(!minimizer_computed){
+					string	min_fonly="ZZZZZZZZZZZZZ";
+					string curr_kmer=strif.translate(rc_copy, k);
+					for(uint j=0; j <  reader.k-minimizer_size+1; j++  )
+					{
+							string curr_msub=curr_kmer.substr(j, minimizer_size);
+							if(curr_msub < min_fonly)
+								min_fonly=curr_msub;
+					}
+
+					ofstream outfile;
+					outfile.open (output_file_prefix);
+					outfile << min_fonly << endl;
+					outfile.close();
+					minimizer_computed=true;
+				}
 			}
 		}
 	}

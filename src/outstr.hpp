@@ -12,6 +12,8 @@
 class Outstr: public KffTool {
 private:
 	std::string input_filename;
+	uint minimizer_size;
+	std::string output_file_prefix;
 	bool revcomp;
 
 public:
